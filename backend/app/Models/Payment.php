@@ -4,25 +4,28 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Organization;
-use App\Models\Payment;
+use App\Models\Customer;
 
-class Customer extends Model
+class Payment extends Model
 {
     protected $fillable = [
         'organization_id',
-        'name',
-        'email',
+        'customer_id',
+        'reference',
+        'amount',
+        'currency',
+        'status',
+        'description',
     ];
 
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
-    
-    public function payments(): HasMany
+
+    public function customer(): BelongsTo
     {
-        return $this->hasMany(Payment::class);
+        return $this->belongsTo(Customer::class);
     }
 }
