@@ -4,8 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Models\Organization;
-use App\Models\Customer;
+use App\PaymentStatus;
 
 class Payment extends Model
 {
@@ -20,6 +19,13 @@ class Payment extends Model
         'idempotency_key',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'status' => PaymentStatus::class,
+        ];
+    }
+
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
@@ -28,5 +34,18 @@ class Payment extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function transitionTo(PaymentStatus $status): void
+    {
+        if (! $this->status->canTransitionTo($status)) {
+            throw new \DomainException(
+                "Cannot transition payment from {$this->status->value} to {$status->value}"
+            );
+        }
+
+        $this->update([
+            'status' => $status,
+        ]);
     }
 }
