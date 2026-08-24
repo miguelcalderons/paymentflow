@@ -17,6 +17,7 @@ class Payment extends Model
         'currency',
         'status',
         'description',
+        'idempotency_key',
     ];
 
     public function organization(): BelongsTo

@@ -25,6 +25,19 @@ class PaymentController extends Controller
             abort(404);
         }
 
+        $idempotencyKey = $request->header('Idempotency-Key');
+
+        // CHECK FIRST
+        if ($idempotencyKey) {
+            $existingPayment = Payment::where('organization_id', $organization->id)
+                ->where('idempotency_key', $idempotencyKey)
+                ->first();
+
+            if ($existingPayment) {
+                return response()->json($existingPayment);
+            }
+        }
+
         $payment = Payment::create([
             'organization_id' => $organization->id,
             'customer_id' => $customer->id,
@@ -33,6 +46,7 @@ class PaymentController extends Controller
             'currency' => strtoupper($validated['currency']),
             'status' => 'pending',
             'description' => $validated['description'] ?? null,
+            'idempotency_key' => $idempotencyKey,
         ]);
 
         return response()->json($payment, 201);

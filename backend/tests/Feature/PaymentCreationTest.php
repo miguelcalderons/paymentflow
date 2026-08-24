@@ -100,4 +100,47 @@ class PaymentCreationTest extends TestCase
 
         $response->assertNotFound();
     }
+
+    public function test_same_idempotency_key_returns_same_payment(): void
+    {
+        $organization = Organization::create([
+            'name' => 'ABC Consulting',
+        ]);
+
+        $customer = Customer::create([
+            'organization_id' => $organization->id,
+            'name' => 'John Doe',
+        ]);
+
+        $headers = [
+            'Idempotency-Key' => 'checkout-test-123',
+        ];
+
+        $payload = [
+            'amount' => 25000,
+            'currency' => 'USD',
+        ];
+
+        $first = $this->postJson(
+            "/api/organizations/{$organization->id}/customers/{$customer->id}/payments",
+            $payload,
+            $headers
+        );
+
+        $second = $this->postJson(
+            "/api/organizations/{$organization->id}/customers/{$customer->id}/payments",
+            $payload,
+            $headers
+        );
+
+        $first->assertCreated();
+        $second->assertOk();
+
+        $this->assertSame(
+            $first->json('id'),
+            $second->json('id')
+        );
+
+        $this->assertDatabaseCount('payments', 1);
+    }
 }
