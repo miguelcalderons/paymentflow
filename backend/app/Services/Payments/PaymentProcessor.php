@@ -27,6 +27,7 @@ class PaymentProcessor
             'provider' => 'mock',
             'provider_reference' => $result['provider_reference'],
             'status' => $result['success'] ? 'succeeded' : 'failed',
+            'failure_reason' => $result['failure_reason'] ?? null,
         ]);
 
         if ($result['success']) {
