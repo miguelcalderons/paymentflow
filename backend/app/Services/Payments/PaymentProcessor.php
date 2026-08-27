@@ -6,7 +6,6 @@ use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\PaymentStatus;
 
-
 class PaymentProcessor
 {
     public function __construct(
@@ -34,6 +33,36 @@ class PaymentProcessor
             $payment->transitionTo(PaymentStatus::Succeeded);
         } else {
             $payment->transitionTo(PaymentStatus::Failed);
+        }
+
+        return $attempt;
+    }
+
+    public function retry(Payment $payment): PaymentAttempt
+    {
+        if ($payment->status !== PaymentStatus::Failed) {
+            throw new \DomainException(
+                'Only failed payments can be retried.'
+            );
+        }
+
+        $result = $this->provider->charge(
+            $payment->amount,
+            $payment->currency
+        );
+
+        $attempt = PaymentAttempt::create([
+            'payment_id' => $payment->id,
+            'provider' => 'mock',
+            'provider_reference' => $result['provider_reference'],
+            'status' => $result['success'] ? 'succeeded' : 'failed',
+            'failure_reason' => $result['failure_reason'] ?? null,
+        ]);
+
+        if ($result['success']) {
+            $payment->forceFill([
+                'status' => PaymentStatus::Succeeded,
+            ])->save();
         }
 
         return $attempt;
