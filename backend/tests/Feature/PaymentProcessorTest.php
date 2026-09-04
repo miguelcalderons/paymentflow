@@ -10,6 +10,7 @@ use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Services\Payments\PaymentProcessor;
 use App\Services\Payments\MockPaymentProvider;
+use App\Exceptions\RetryablePaymentException;
 
 class PaymentProcessorTest extends TestCase
 {
@@ -36,7 +37,7 @@ class PaymentProcessorTest extends TestCase
         ]);
 
         $processor = new PaymentProcessor(
-            new MockPaymentProvider(true)
+            new MockPaymentProvider('success')
         );
 
         $attempt = $processor->process($payment);
@@ -87,7 +88,7 @@ class PaymentProcessorTest extends TestCase
         ]);
 
         $processor = new PaymentProcessor(
-            new MockPaymentProvider(false)
+            new MockPaymentProvider('declined')
         );
 
         $attempt = $processor->process($payment);
@@ -97,10 +98,8 @@ class PaymentProcessorTest extends TestCase
             $payment->fresh()->status
         );
 
-        $this->assertSame('failed', $attempt->status);
-
         $this->assertSame(
-            'Mock provider failure',
+            'Card declined',
             $attempt->failure_reason
         );
 
@@ -121,6 +120,55 @@ class PaymentProcessorTest extends TestCase
             'provider' => 'mock',
             'status' => 'failed',
             'provider_reference' => $attempt->provider_reference,
+        ]);
+    }
+
+    public function test_payment_processor_records_timeout_and_rethrows_retryable_exception(): void
+    {
+        $organization = Organization::create([
+            'name' => 'ABC Consulting',
+        ]);
+
+        $customer = Customer::create([
+            'organization_id' => $organization->id,
+            'name' => 'John Doe',
+        ]);
+
+        $payment = Payment::create([
+            'organization_id' => $organization->id,
+            'customer_id' => $customer->id,
+            'reference' => uniqid('PAY-'),
+            'amount' => 25000,
+            'currency' => 'USD',
+            'status' => PaymentStatus::Pending,
+        ]);
+
+        $processor = new PaymentProcessor(
+            new MockPaymentProvider('timeout')
+        );
+
+        try {
+            $processor->process($payment);
+
+            $this->fail('Expected RetryablePaymentException was not thrown.');
+        } catch (RetryablePaymentException $e) {
+            $this->assertSame(
+                'Mock provider timeout',
+                $e->getMessage()
+            );
+        }
+
+        $this->assertSame(
+            PaymentStatus::Processing,
+            $payment->fresh()->status
+        );
+
+        $this->assertDatabaseHas('payment_attempts', [
+            'payment_id' => $payment->id,
+            'provider' => 'mock',
+            'status' => 'failed',
+            'provider_reference' => null,
+            'failure_reason' => 'Mock provider timeout',
         ]);
     }
 }
