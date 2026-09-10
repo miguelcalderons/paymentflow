@@ -27,15 +27,18 @@ class PaymentController extends Controller
 
         $idempotencyKey = $request->header('Idempotency-Key');
 
-        // CHECK FIRST
-        if ($idempotencyKey) {
-            $existingPayment = Payment::where('organization_id', $organization->id)
-                ->where('idempotency_key', $idempotencyKey)
-                ->first();
+        if (!$idempotencyKey) {
+            return response()->json([
+                'message' => 'Idempotency-Key header is required.',
+            ], 422);
+        }
 
-            if ($existingPayment) {
-                return response()->json($existingPayment);
-            }
+        $existingPayment = Payment::where('organization_id', $organization->id)
+            ->where('idempotency_key', $idempotencyKey)
+            ->first();
+
+        if ($existingPayment) {
+            return response()->json($existingPayment);
         }
 
         $payment = Payment::create([

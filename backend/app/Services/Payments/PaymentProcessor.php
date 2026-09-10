@@ -28,7 +28,8 @@ class PaymentProcessor
         try {
             $result = $this->provider->charge(
                 $payment->amount,
-                $payment->currency
+                $payment->currency,
+                $payment->reference
             );
         } catch (RetryablePaymentException $e) {
             PaymentAttempt::create([

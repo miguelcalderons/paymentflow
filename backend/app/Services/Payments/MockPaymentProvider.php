@@ -3,6 +3,7 @@
 namespace App\Services\Payments;
 
 use App\Exceptions\RetryablePaymentException;
+use Illuminate\Support\Facades\Cache;
 
 class MockPaymentProvider
 {
@@ -10,9 +11,18 @@ class MockPaymentProvider
         private string $mode = 'success'
     ) {}
 
-    public function charge(int $amount, string $currency): array
-    {
-        return match ($this->mode) {
+    public function charge(
+        int $amount,
+        string $currency,
+        string $idempotencyKey
+    ): array {
+        $cacheKey = "mock-payment:{$idempotencyKey}";
+
+        if (Cache::has($cacheKey)) {
+            return Cache::get($cacheKey);
+        }
+
+        $result = match ($this->mode) {
             'success' => [
                 'success' => true,
                 'provider_reference' => 'MOCK-' . uniqid(),
@@ -33,5 +43,9 @@ class MockPaymentProvider
                 "Unknown mock provider mode: {$this->mode}"
             ),
         };
+
+        Cache::forever($cacheKey, $result);
+
+        return $result;
     }
 }

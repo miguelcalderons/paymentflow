@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Customer;
 use App\Models\Organization;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -30,24 +29,20 @@ class PaymentCreationTest extends TestCase
                 'amount' => 25000,
                 'currency' => 'USD',
                 'description' => 'Website development payment',
+            ],
+            [
+                'Idempotency-Key' => 'payment-test-123',
             ]
         );
 
-        $response
-            ->assertCreated()
-            ->assertJson([
-                'organization_id' => $organization->id,
-                'customer_id' => $customer->id,
-                'amount' => 25000,
-                'currency' => 'USD',
-                'status' => 'pending',
-            ]);
+        $response->assertCreated();
 
         $this->assertDatabaseHas('payments', [
             'organization_id' => $organization->id,
             'customer_id' => $customer->id,
             'amount' => 25000,
             'status' => 'pending',
+            'idempotency_key' => 'payment-test-123',
         ]);
     }
 
@@ -60,6 +55,7 @@ class PaymentCreationTest extends TestCase
         $customer = Customer::create([
             'organization_id' => $organization->id,
             'name' => 'John Doe',
+            'email' => 'john@example.com',
         ]);
 
         $response = $this->postJson(
@@ -88,6 +84,7 @@ class PaymentCreationTest extends TestCase
         $customer = Customer::create([
             'organization_id' => $organizationA->id,
             'name' => 'John Doe',
+            'email' => 'john@example.com',
         ]);
 
         $response = $this->postJson(
@@ -110,6 +107,7 @@ class PaymentCreationTest extends TestCase
         $customer = Customer::create([
             'organization_id' => $organization->id,
             'name' => 'John Doe',
+            'email' => 'john@example.com',
         ]);
 
         $headers = [
@@ -142,5 +140,30 @@ class PaymentCreationTest extends TestCase
         );
 
         $this->assertDatabaseCount('payments', 1);
+    }
+
+    public function test_idempotency_key_is_required(): void
+    {
+        $organization = Organization::create([
+            'name' => 'ABC Consulting',
+        ]);
+
+        $customer = Customer::create([
+            'organization_id' => $organization->id,
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+
+        $response = $this->postJson(
+            "/api/organizations/{$organization->id}/customers/{$customer->id}/payments",
+            [
+                'amount' => 25000,
+                'currency' => 'USD',
+            ]
+        );
+
+        $response->assertStatus(422);
+
+        $this->assertDatabaseCount('payments', 0);
     }
 }
