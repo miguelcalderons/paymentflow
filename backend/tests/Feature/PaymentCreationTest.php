@@ -166,4 +166,40 @@ class PaymentCreationTest extends TestCase
 
         $this->assertDatabaseCount('payments', 0);
     }
+
+    public function test_same_idempotency_key_with_different_amount_is_rejected(): void
+    {
+        $organization = Organization::create([
+            'name' => 'ABC Consulting',
+        ]);
+
+        $customer = Customer::create([
+            'organization_id' => $organization->id,
+            'name' => 'John Doe',
+        ]);
+
+        $headers = [
+            'Idempotency-Key' => 'checkout-conflict-123',
+        ];
+
+        $this->postJson(
+            "/api/organizations/{$organization->id}/customers/{$customer->id}/payments",
+            [
+                'amount' => 25000,
+                'currency' => 'USD',
+            ],
+            $headers
+        )->assertCreated();
+
+        $this->postJson(
+            "/api/organizations/{$organization->id}/customers/{$customer->id}/payments",
+            [
+                'amount' => 50000,
+                'currency' => 'USD',
+            ],
+            $headers
+        )->assertStatus(409);
+
+        $this->assertDatabaseCount('payments', 1);
+    }
 }
