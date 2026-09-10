@@ -36,5 +36,6 @@ return [
     ],
     'mock_payment' => [
         'mode' => env('MOCK_PAYMENT_MODE', 'success'),
+        'webhook_secret' => env('MOCK_WEBHOOK_SECRET'),
     ],
 ];
