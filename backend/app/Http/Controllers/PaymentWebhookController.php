@@ -9,6 +9,7 @@ use DomainException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Jobs\SendPaymentWebhookJob;
 
 class PaymentWebhookController extends Controller
 {
@@ -36,13 +37,15 @@ class PaymentWebhookController extends Controller
         ]);
 
         try {
-            return DB::transaction(function () use ($request, $validated) {
+            $result = DB::transaction(function () use ($request, $validated) {
                 $event = WebhookEvent::create([
                     'provider' => 'mock',
                     'event_id' => $validated['event_id'],
                     'type' => $validated['type'],
                     'payload' => $request->all(),
                 ]);
+
+                $payment = null;
 
                 if (in_array($validated['type'], [
                     'payment.succeeded',
@@ -78,10 +81,10 @@ class PaymentWebhookController extends Controller
                     'processed_at' => now(),
                 ]);
 
-                return response()->json([
-                    'status' => 'received',
-                    'event_id' => $event->event_id,
-                ], 200);
+                return [
+                    'event' => $event,
+                    'payment' => $payment,
+                ];
             });
         } catch (UniqueConstraintViolationException $e) {
             return response()->json([
@@ -92,5 +95,20 @@ class PaymentWebhookController extends Controller
                 'message' => $e->getMessage(),
             ], 409);
         }
+
+        $payment = $result['payment'];
+
+        if (
+            $payment &&
+            $payment->organization->webhook_url &&
+            $payment->organization->webhook_secret
+        ) {
+            SendPaymentWebhookJob::dispatch($payment);
+        }
+
+        return response()->json([
+            'status' => 'received',
+            'event_id' => $result['event']->event_id,
+        ], 200);
     }
 }

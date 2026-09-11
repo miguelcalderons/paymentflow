@@ -8,6 +8,8 @@ use App\Models\Organization;
 use App\Models\Customer;
 use App\Models\Payment;
 use App\PaymentStatus;
+use App\Jobs\SendPaymentWebhookJob;
+use Illuminate\Support\Facades\Queue;
 
 class PaymentWebhookTest extends TestCase
 {
@@ -276,6 +278,73 @@ class PaymentWebhookTest extends TestCase
         $this->assertSame(
             PaymentStatus::Failed,
             $payment->fresh()->status
+        );
+    }
+
+    public function test_succeeded_webhook_queues_notification_to_ecommerce(): void
+    {
+        Queue::fake();
+
+        config([
+            'services.mock_payment.webhook_secret' => 'test-secret',
+        ]);
+
+        $organization = Organization::create([
+            'name' => 'ABC Consulting',
+            'webhook_url' => 'https://shop.example.com/webhooks/paymentflow',
+            'webhook_secret' => 'shop-secret',
+        ]);
+
+        $customer = Customer::create([
+            'organization_id' => $organization->id,
+            'name' => 'John Doe',
+        ]);
+
+        $payment = Payment::create([
+            'organization_id' => $organization->id,
+            'customer_id' => $customer->id,
+            'reference' => 'PAY-OUTBOUND-WEBHOOK',
+            'amount' => 25000,
+            'currency' => 'USD',
+            'status' => PaymentStatus::Processing,
+        ]);
+
+        $payload = [
+            'event_id' => 'evt_outbound_test',
+            'type' => 'payment.succeeded',
+            'data' => [
+                'payment_reference' => $payment->reference,
+            ],
+        ];
+
+        $json = json_encode($payload);
+
+        $signature = hash_hmac(
+            'sha256',
+            $json,
+            'test-secret'
+        );
+
+        $response = $this->call(
+            'POST',
+            '/api/webhooks/mock',
+            [],
+            [],
+            [],
+            [
+                'HTTP_X_MOCK_SIGNATURE' => $signature,
+                'CONTENT_TYPE' => 'application/json',
+            ],
+            $json
+        );
+
+        $response->assertOk();
+
+        Queue::assertPushed(
+            SendPaymentWebhookJob::class,
+            function ($job) use ($payment) {
+                return $job->payment->is($payment);
+            }
         );
     }
 }

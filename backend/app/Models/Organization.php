@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+
 class Organization extends Model
 {
     protected $fillable = [
         'name',
+        'webhook_url',
+        'webhook_secret',
     ];
 
     public function memberships(): HasMany
