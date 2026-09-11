@@ -16,15 +16,26 @@ class PaymentController extends Controller
         Organization $organization,
         Customer $customer
     ) {
+        $authenticatedOrganization = $request->attributes->get(
+            'authenticated_organization'
+        );
+
+        if (
+            !$authenticatedOrganization ||
+            !$authenticatedOrganization->is($organization)
+        ) {
+            abort(403);
+        }
+
+        if ($customer->organization_id !== $organization->id) {
+            abort(404);
+        }
+
         $validated = $request->validate([
             'amount' => ['required', 'integer', 'min:1'],
             'currency' => ['required', 'string', 'size:3'],
             'description' => ['nullable', 'string'],
         ]);
-
-        if ($customer->organization_id !== $organization->id) {
-            abort(404);
-        }
 
         $idempotencyKey = $request->header('Idempotency-Key');
 

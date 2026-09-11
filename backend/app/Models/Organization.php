@@ -27,4 +27,9 @@ class Organization extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    public function apiKeys(): HasMany
+    {
+        return $this->hasMany(OrganizationApiKey::class);
+    }
 }
