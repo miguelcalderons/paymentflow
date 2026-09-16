@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\PaymentStatus;
 use App\Contracts\PaymentProviderInterface;
+use Illuminate\Support\Facades\Log;
 
 class PaymentProcessor
 {
@@ -16,6 +17,15 @@ class PaymentProcessor
 
     public function process(Payment $payment): PaymentAttempt
     {
+        Log::info('Payment processing started', [
+            'payment_id' => $payment->id,
+            'payment_reference' => $payment->reference,
+            'organization_id' => $payment->organization_id,
+            'amount' => $payment->amount,
+            'currency' => $payment->currency,
+            'status' => $payment->status->value,
+        ]);
+
         if ($payment->status === PaymentStatus::Pending) {
             $payment->transitionTo(PaymentStatus::Processing);
         }
@@ -27,12 +37,28 @@ class PaymentProcessor
         }
 
         try {
+            Log::info('Calling payment provider', [
+                'payment_id' => $payment->id,
+                'payment_reference' => $payment->reference,
+            ]);
             $result = $this->provider->charge(
                 $payment->amount,
                 $payment->currency,
                 $payment->reference
             );
+            Log::info('Payment provider responded', [
+                'payment_id' => $payment->id,
+                'payment_reference' => $payment->reference,
+                'success' => $result['success'],
+                'provider_reference' => $result['provider_reference'],
+            ]);
         } catch (RetryablePaymentException $e) {
+            Log::warning('Payment provider temporary failure', [
+                'payment_id' => $payment->id,
+                'payment_reference' => $payment->reference,
+                'error' => $e->getMessage(),
+            ]);
+
             PaymentAttempt::create([
                 'payment_id' => $payment->id,
                 'provider' => 'mock',
@@ -57,7 +83,11 @@ class PaymentProcessor
         } else {
             $payment->transitionTo(PaymentStatus::Failed);
         }
-
+        Log::info('Payment processing finished', [
+            'payment_id' => $payment->id,
+            'payment_reference' => $payment->reference,
+            'status' => $payment->fresh()->status->value,
+        ]);
         return $attempt;
     }
 }

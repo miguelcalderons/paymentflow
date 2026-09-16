@@ -4,6 +4,8 @@ namespace App\Services\Webhooks;
 
 use App\Models\Payment;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class PaymentWebhookSender
 {
@@ -30,16 +32,41 @@ class PaymentWebhookSender
       $json,
       $organization->webhook_secret
     );
-    Http::timeout(5)
-      ->withHeaders([
-        'X-PaymentFlow-Signature' => $signature,
-        'Content-Type' => 'application/json',
-      ])
-      ->withBody(
-        $json,
-        'application/json'
-      )
-      ->post($organization->webhook_url)
-      ->throw();
+
+    Log::info('Outbound payment webhook sending', [
+      'payment_id' => $payment->id,
+      'payment_reference' => $payment->reference,
+      'organization_id' => $organization->id,
+      'event' => $payload['event'],
+    ]);
+
+    try {
+      $response = Http::timeout(5)
+        ->withHeaders([
+          'X-PaymentFlow-Signature' => $signature,
+          'Content-Type' => 'application/json',
+        ])
+        ->withBody($json, 'application/json')
+        ->post($organization->webhook_url)
+        ->throw();
+
+      Log::info('Outbound payment webhook delivered', [
+        'payment_id' => $payment->id,
+        'payment_reference' => $payment->reference,
+        'organization_id' => $organization->id,
+        'event' => $payload['event'],
+        'http_status' => $response->status(),
+      ]);
+    } catch (Throwable $e) {
+      Log::warning('Outbound payment webhook failed', [
+        'payment_id' => $payment->id,
+        'payment_reference' => $payment->reference,
+        'organization_id' => $organization->id,
+        'event' => $payload['event'],
+        'error' => $e->getMessage(),
+      ]);
+
+      throw $e;
+    }
   }
 }
