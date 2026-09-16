@@ -4,8 +4,9 @@ namespace App\Services\Payments;
 
 use App\Exceptions\RetryablePaymentException;
 use Illuminate\Support\Facades\Cache;
+use App\Contracts\PaymentProviderInterface;
 
-class MockPaymentProvider
+class MockPaymentProvider implements PaymentProviderInterface
 {
     public function __construct(
         private string $mode = 'success'

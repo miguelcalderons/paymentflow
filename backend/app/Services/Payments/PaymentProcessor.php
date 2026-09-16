@@ -6,11 +6,12 @@ use App\Exceptions\RetryablePaymentException;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\PaymentStatus;
+use App\Contracts\PaymentProviderInterface;
 
 class PaymentProcessor
 {
     public function __construct(
-        private MockPaymentProvider $provider
+        private PaymentProviderInterface $provider
     ) {}
 
     public function process(Payment $payment): PaymentAttempt

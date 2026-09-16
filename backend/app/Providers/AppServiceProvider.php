@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use App\Services\Payments\MockPaymentProvider;
+use App\Contracts\PaymentProviderInterface;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -12,7 +13,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(MockPaymentProvider::class, function () {
+        $this->app->bind(PaymentProviderInterface::class, function () {
             return new MockPaymentProvider(
                 config('services.mock_payment.mode', 'success')
             );
